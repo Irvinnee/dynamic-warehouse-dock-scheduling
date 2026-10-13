@@ -18,8 +18,11 @@ def validate_scenario(scenario: ScenarioDefinition) -> None:
     realization_jobs = scenario.realization.jobs
 
     for index, job in enumerate(plan_jobs):
-        if not job.job_id:
-            errors.append(f"plan job at index {index} has an empty job_id")
+        if problem := _identifier_problem(job.job_id):
+            errors.append(f"plan job at index {index} has {problem} job_id")
+    for index, realization in enumerate(realization_jobs):
+        if problem := _identifier_problem(realization.job_id):
+            errors.append(f"realization at index {index} has {problem} job_id")
     plan_duplicates = _duplicates(job.job_id for job in plan_jobs)
     realization_duplicates = _duplicates(job.job_id for job in realization_jobs)
     errors.extend(f"plan: duplicate job_id {job_id!r}" for job_id in plan_duplicates)
@@ -41,8 +44,8 @@ def validate_scenario(scenario: ScenarioDefinition) -> None:
     if not scenario.docks:
         errors.append("scenario has no docks")
     for index, dock in enumerate(scenario.docks):
-        if not dock.dock_id:
-            errors.append(f"dock at index {index} has an empty dock_id")
+        if problem := _identifier_problem(dock.dock_id):
+            errors.append(f"dock at index {index} has {problem} dock_id")
     errors.extend(
         f"duplicate dock_id {dock_id!r}"
         for dock_id in _duplicates(dock.dock_id for dock in scenario.docks)
@@ -82,6 +85,14 @@ def validate_scenario(scenario: ScenarioDefinition) -> None:
 
     if errors:
         raise ScenarioValidationError(errors)
+
+
+def _identifier_problem(identifier: str) -> str | None:
+    if not identifier:
+        return "an empty"
+    if identifier.isspace():
+        return "a whitespace-only"
+    return None
 
 
 def _duplicates(ids: Iterable[str]) -> list[str]:

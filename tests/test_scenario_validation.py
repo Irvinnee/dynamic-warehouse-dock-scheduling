@@ -115,7 +115,46 @@ def test_empty_plan_job_id_is_rejected():
         _scenario(plan_jobs=(_plan(""),), realization_jobs=(_realization(""),))
     )
 
-    assert errors == ("plan job at index 0 has an empty job_id",)
+    assert errors == (
+        "plan job at index 0 has an empty job_id",
+        "realization at index 0 has an empty job_id",
+    )
+
+
+def test_empty_realization_job_id_is_rejected_as_identifier_error():
+    errors = _errors(
+        _scenario(realization_jobs=(_realization("J001"), _realization("")))
+    )
+
+    assert errors == (
+        "realization at index 1 has an empty job_id",
+        "realization '': no planned job",
+    )
+
+
+def test_whitespace_only_plan_job_id_is_rejected():
+    errors = _errors(
+        _scenario(
+            plan_jobs=(_plan(" "), _plan("J001")),
+            realization_jobs=(_realization("J001"),),
+        )
+    )
+
+    assert errors == (
+        "plan job at index 0 has a whitespace-only job_id",
+        "job ' ': no realization",
+    )
+
+
+def test_whitespace_only_realization_job_id_is_rejected():
+    errors = _errors(
+        _scenario(realization_jobs=(_realization("J001"), _realization("\t")))
+    )
+
+    assert errors == (
+        "realization at index 1 has a whitespace-only job_id",
+        "realization '\\t': no planned job",
+    )
 
 
 def test_duplicate_plan_job_id_is_rejected():
@@ -159,6 +198,12 @@ def test_empty_dock_id_is_rejected():
     errors = _errors(_scenario(docks=(DockDefinition(""),)))
 
     assert errors == ("dock at index 0 has an empty dock_id",)
+
+
+def test_whitespace_only_dock_id_is_rejected():
+    errors = _errors(_scenario(docks=(DockDefinition("  "),)))
+
+    assert errors == ("dock at index 0 has a whitespace-only dock_id",)
 
 
 def test_duplicate_dock_id_is_rejected():

@@ -1,5 +1,6 @@
 import csv
 import re
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 
@@ -79,10 +80,11 @@ def _read_rows[T](
         header = reader.fieldnames or []
         missing = [field for field in fields if field not in header]
         unexpected = [field for field in header if field not in fields]
-        if missing or unexpected:
+        duplicated = [field for field, count in Counter(header).items() if count > 1]
+        if missing or unexpected or duplicated:
             errors.append(
-                f"{path}: header must contain exactly {list(fields)}, "
-                f"missing {missing}, unexpected {unexpected}"
+                f"{path}: header must contain each of {list(fields)} exactly once, "
+                f"missing {missing}, unexpected {unexpected}, duplicated {duplicated}"
             )
             return ()
 

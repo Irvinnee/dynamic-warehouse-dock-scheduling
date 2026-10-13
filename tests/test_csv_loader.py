@@ -164,6 +164,32 @@ def test_header_with_missing_and_unexpected_column_is_rejected(tmp_path):
     assert "missing ['priority'], unexpected ['is_priority']" in errors[0]
 
 
+def test_plan_columns_may_appear_in_any_order(tmp_path):
+    header = (
+        "load_section,unload_section,estimated_service_time_min,priority,"
+        "operation,planned_arrival_min,job_id"
+    )
+
+    scenario = _load(
+        tmp_path, ["B,A,60,true,BOTH,-15,J001"], ["J001,10,60"], plan_header=header
+    )
+
+    assert scenario.plan.jobs == (
+        JobPlan("J001", -15, OperationType.BOTH, True, 60, "A", "B"),
+    )
+
+
+def test_header_with_duplicated_column_is_rejected(tmp_path):
+    header = PLAN_HEADER + ",job_id"
+
+    errors = _parse_errors(
+        tmp_path, [VALID_PLAN_ROW + "J001"], [VALID_REALIZATION_ROW], plan_header=header
+    )
+
+    assert len(errors) == 1
+    assert "duplicated ['job_id']" in errors[0]
+
+
 @pytest.mark.parametrize(
     "row", ["J001,480,UNLOAD,false,30,A", "J001,480,UNLOAD,false,30,A,,X"]
 )
