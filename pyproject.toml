@@ -1,0 +1,23 @@
+[project]
+name = "dock-scheduling"
+version = "0.1.0"
+description = "Discrete-event simulation of dynamic job scheduling for warehouse dock operations."
+readme = "README.md"
+authors = [
+    { name = "Joanna Wojnowska", email = "jwojnowska.2004@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
