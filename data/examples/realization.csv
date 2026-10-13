@@ -1,0 +1,5 @@
+job_id,actual_arrival_min,actual_service_time_min
+J001,90,45
+J002,470,30
+J003,510,60
+J004,1450,40
