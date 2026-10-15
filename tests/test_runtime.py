@@ -31,13 +31,13 @@ def _scenario() -> ScenarioDefinition:
     )
 
 
-def test_new_runtime_state_has_free_docks_in_scenario_order():
+def test_new_runtime_state_has_every_scenario_dock_free():
     runtime = create_runtime_state(_scenario())
 
-    assert list(runtime.docks.values()) == [
-        DockRuntime("D02", DockStatus.FREE, None),
-        DockRuntime("D01", DockStatus.FREE, None),
-    ]
+    assert runtime.docks == {
+        "D01": DockRuntime("D01", DockStatus.FREE, None),
+        "D02": DockRuntime("D02", DockStatus.FREE, None),
+    }
 
 
 def test_new_runtime_state_has_no_job_records_before_arrival():
