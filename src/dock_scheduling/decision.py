@@ -14,7 +14,6 @@ class InvalidDecisionError(ValueError):
 
 
 def validate_decision(decision: Assign, runtime: RuntimeState) -> None:
-    """Raise InvalidDecisionError unless the decision can be applied now."""
     job = runtime.jobs.get(decision.job_id)
     if job is None:
         raise InvalidDecisionError(f"job {decision.job_id!r} is not in the system")
@@ -39,3 +38,20 @@ def validate_decision(decision: Assign, runtime: RuntimeState) -> None:
                 f"job {decision.job_id!r} is already active on dock "
                 f"{other_dock.dock_id!r}"
             )
+
+
+def validate_batch(decisions: tuple[Assign, ...], runtime: RuntimeState) -> None:
+    seen_job_ids: set[str] = set()
+    seen_dock_ids: set[str] = set()
+    for decision in decisions:
+        validate_decision(decision, runtime)
+        if decision.job_id in seen_job_ids:
+            raise InvalidDecisionError(
+                f"job {decision.job_id!r} is assigned more than once in the batch"
+            )
+        if decision.dock_id in seen_dock_ids:
+            raise InvalidDecisionError(
+                f"dock {decision.dock_id!r} is assigned more than once in the batch"
+            )
+        seen_job_ids.add(decision.job_id)
+        seen_dock_ids.add(decision.dock_id)

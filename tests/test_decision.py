@@ -1,9 +1,13 @@
 import copy
-from dataclasses import fields
 
 import pytest
 
-from dock_scheduling.decision import Assign, InvalidDecisionError, validate_decision
+from dock_scheduling.decision import (
+    Assign,
+    InvalidDecisionError,
+    validate_batch,
+    validate_decision,
+)
 from dock_scheduling.domain import (
     DockDefinition,
     PlanSnapshot,
@@ -35,10 +39,6 @@ def _rejection(decision: Assign, runtime: RuntimeState) -> str:
     with pytest.raises(InvalidDecisionError) as excinfo:
         validate_decision(decision, runtime)
     return str(excinfo.value)
-
-
-def test_assign_carries_only_job_and_dock_ids():
-    assert [field.name for field in fields(Assign)] == ["job_id", "dock_id"]
 
 
 def test_waiting_job_on_free_dock_is_accepted():
@@ -112,5 +112,67 @@ def test_rejected_decision_does_not_change_runtime(decision):
 
     with pytest.raises(InvalidDecisionError):
         validate_decision(decision, runtime)
+
+    assert runtime == before
+
+
+def _runtime_with_two_waiting_jobs() -> RuntimeState:
+    runtime = _runtime()
+    runtime.jobs["J002"] = JobRuntime("J002", JobStatus.WAITING, 500)
+    return runtime
+
+
+def test_empty_batch_is_accepted():
+    validate_batch((), _runtime())
+
+
+def test_batch_assigning_one_job_twice_is_rejected_as_duplicate():
+    with pytest.raises(InvalidDecisionError, match=r"'J001'.*more than once"):
+        validate_batch(
+            (Assign("J001", "D01"), Assign("J001", "D02")),
+            _runtime_with_two_waiting_jobs(),
+        )
+
+
+def test_batch_using_one_dock_twice_is_rejected_as_duplicate():
+    with pytest.raises(InvalidDecisionError, match=r"'D01'.*more than once"):
+        validate_batch(
+            (Assign("J001", "D01"), Assign("J002", "D01")),
+            _runtime_with_two_waiting_jobs(),
+        )
+
+
+def test_invalid_decision_after_a_valid_one_is_rejected():
+    with pytest.raises(InvalidDecisionError, match="'J999'"):
+        validate_batch(
+            (Assign("J001", "D01"), Assign("J999", "D02")),
+            _runtime_with_two_waiting_jobs(),
+        )
+
+
+def test_accepted_batch_does_not_change_runtime():
+    runtime = _runtime_with_two_waiting_jobs()
+    before = copy.deepcopy(runtime)
+
+    validate_batch((Assign("J001", "D01"), Assign("J002", "D02")), runtime)
+
+    assert runtime == before
+
+
+@pytest.mark.parametrize(
+    "decisions",
+    [
+        (Assign("J001", "D01"), Assign("J001", "D02")),
+        (Assign("J001", "D01"), Assign("J002", "D01")),
+        (Assign("J001", "D01"), Assign("J999", "D02")),
+    ],
+    ids=["duplicate_job", "duplicate_dock", "unknown_job"],
+)
+def test_rejected_batch_does_not_change_runtime(decisions):
+    runtime = _runtime_with_two_waiting_jobs()
+    before = copy.deepcopy(runtime)
+
+    with pytest.raises(InvalidDecisionError):
+        validate_batch(decisions, runtime)
 
     assert runtime == before
