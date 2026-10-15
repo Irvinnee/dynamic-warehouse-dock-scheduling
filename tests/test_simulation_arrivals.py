@@ -1,3 +1,4 @@
+from dock_scheduling.decision import Assign
 from dock_scheduling.domain import (
     DockDefinition,
     JobPlan,
@@ -9,7 +10,13 @@ from dock_scheduling.domain import (
 )
 from dock_scheduling.event_log import EventRecord, EventType
 from dock_scheduling.runtime import JobRuntime, JobStatus
+from dock_scheduling.scheduling_state import SchedulingState
 from dock_scheduling.simulation import WarehouseSimulation
+
+
+class _NoAssignmentScheduler:
+    def schedule(self, state: SchedulingState) -> tuple[Assign, ...]:
+        return ()
 
 
 def _scenario(arrivals: dict[str, int]) -> ScenarioDefinition:
@@ -31,14 +38,14 @@ def _scenario(arrivals: dict[str, int]) -> ScenarioDefinition:
 
 
 def test_runtime_has_no_job_records_before_run():
-    simulation = WarehouseSimulation(_scenario({"J001": 495}))
+    simulation = WarehouseSimulation(_scenario({"J001": 495}), _NoAssignmentScheduler())
 
     assert simulation.runtime.jobs == {}
     assert simulation.event_log.records == ()
 
 
 def test_job_is_admitted_as_waiting_at_actual_arrival_minute():
-    simulation = WarehouseSimulation(_scenario({"J001": 495}))
+    simulation = WarehouseSimulation(_scenario({"J001": 495}), _NoAssignmentScheduler())
 
     simulation.run()
 
@@ -51,7 +58,9 @@ def test_job_is_admitted_as_waiting_at_actual_arrival_minute():
 
 
 def test_jobs_arriving_at_same_minute_are_all_admitted():
-    simulation = WarehouseSimulation(_scenario({"J001": 600, "J002": 600}))
+    simulation = WarehouseSimulation(
+        _scenario({"J001": 600, "J002": 600}), _NoAssignmentScheduler()
+    )
 
     simulation.run()
 
@@ -68,7 +77,8 @@ def test_jobs_arriving_at_same_minute_are_all_admitted():
 
 def test_spill_out_job_is_not_admitted():
     simulation = WarehouseSimulation(
-        _scenario({"J001": 0, "J002": 1439, "J003": 1440, "J004": 1500})
+        _scenario({"J001": 0, "J002": 1439, "J003": 1440, "J004": 1500}),
+        _NoAssignmentScheduler(),
     )
 
     simulation.run()
@@ -82,10 +92,10 @@ def test_spill_out_job_is_not_admitted():
 
 def test_runs_of_same_scenario_have_independent_state():
     scenario = _scenario({"J001": 495})
-    first = WarehouseSimulation(scenario)
+    first = WarehouseSimulation(scenario, _NoAssignmentScheduler())
     first.run()
 
-    second = WarehouseSimulation(scenario)
+    second = WarehouseSimulation(scenario, _NoAssignmentScheduler())
 
     assert second.runtime.jobs == {}
     assert second.event_log.records == ()

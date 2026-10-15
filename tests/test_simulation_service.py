@@ -1,3 +1,4 @@
+from dock_scheduling.decision import Assign
 from dock_scheduling.domain import (
     DockDefinition,
     JobPlan,
@@ -9,10 +10,19 @@ from dock_scheduling.domain import (
 )
 from dock_scheduling.event_log import EventRecord, EventType
 from dock_scheduling.runtime import DockRuntime, DockStatus, JobRuntime, JobStatus
+from dock_scheduling.scheduling_state import SchedulingState
 from dock_scheduling.simulation import WarehouseSimulation
 
+
+class _AssignJ001ToD02Scheduler:
+    def schedule(self, state: SchedulingState) -> tuple[Assign, ...]:
+        if "J001" in {job.job_id for job in state.waiting_jobs}:
+            return (Assign("J001", "D02"),)
+        return ()
+
+
 ARRIVAL_MIN = 495
-SERVICE_START_MIN = 500
+SERVICE_START_MIN = ARRIVAL_MIN
 SERVICE_TIME_MIN = 30
 SERVICE_END_MIN = SERVICE_START_MIN + SERVICE_TIME_MIN
 
@@ -37,9 +47,8 @@ def _started_simulation() -> WarehouseSimulation:
         ),
         docks=(DockDefinition("D01"), DockDefinition("D02")),
     )
-    simulation = WarehouseSimulation(scenario)
-    simulation.run(until_min=SERVICE_START_MIN)
-    simulation.start_service("J001", "D02")
+    simulation = WarehouseSimulation(scenario, _AssignJ001ToD02Scheduler())
+    simulation.run(until_min=SERVICE_START_MIN + 1)
     return simulation
 
 

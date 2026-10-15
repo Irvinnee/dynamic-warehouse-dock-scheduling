@@ -1,5 +1,11 @@
+from typing import Protocol
+
 from dock_scheduling.decision import Assign
 from dock_scheduling.scheduling_state import SchedulingState
+
+
+class Scheduler(Protocol):
+    def schedule(self, state: SchedulingState) -> tuple[Assign, ...]: ...
 
 
 class FCFSScheduler:
