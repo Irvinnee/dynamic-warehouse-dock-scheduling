@@ -14,7 +14,7 @@ from dock_scheduling.domain import (
 )
 from dock_scheduling.scenario_validation import ScenarioValidationError
 
-EXAMPLES_DIR = Path(__file__).parent.parent / "data" / "examples"
+EXAMPLES_DIR = Path(__file__).parent.parent / "data" / "examples" / "validation"
 DOCKS = (DockDefinition("D01"), DockDefinition("D02"))
 PLAN_HEADER = (
     "job_id,planned_arrival_min,operation,priority,"
