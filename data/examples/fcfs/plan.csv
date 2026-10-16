@@ -1,0 +1,4 @@
+job_id,planned_arrival_min,operation,priority,estimated_service_time_min,unload_section,load_section
+J001,100,UNLOAD,false,40,A,
+J002,110,LOAD,false,50,,B
+J003,120,BOTH,false,20,A,B
