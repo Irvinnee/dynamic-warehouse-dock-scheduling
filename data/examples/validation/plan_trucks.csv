@@ -1,0 +1,4 @@
+truck_id,planned_arrival_min,priority
+T01,-120,false
+T02,480,true
+T03,1420,false

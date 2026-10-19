@@ -9,6 +9,8 @@ from dock_scheduling.domain import (
     PlanSnapshot,
     RealizationDefinition,
     ScenarioDefinition,
+    TruckPlan,
+    TruckRealization,
 )
 from dock_scheduling.event_log import EventRecord, EventType
 from dock_scheduling.runtime import JobStatus
@@ -29,23 +31,32 @@ class _ScriptedScheduler:
         return self._decisions_by_minute.get(state.current_time_min, ())
 
 
+def _truck_id(job_id: str) -> str:
+    return "T" + job_id.removeprefix("J")
+
+
 def _scenario(
     arrivals: dict[str, int], dock_ids: tuple[str, ...] = ("D01",)
 ) -> ScenarioDefinition:
+    """Each job belongs to its own single-job truck arriving at the given minute."""
     return ScenarioDefinition(
         plan=PlanSnapshot(
-            jobs=tuple(
-                JobPlan(
-                    job_id, 0, OperationType.UNLOAD, False, SERVICE_TIME_MIN, "A", None
+            trucks=tuple(
+                TruckPlan(
+                    _truck_id(job_id),
+                    0,
+                    False,
+                    (JobPlan(job_id, OperationType.UNLOAD, "A", SERVICE_TIME_MIN),),
                 )
                 for job_id in arrivals
             )
         ),
         realization=RealizationDefinition(
-            jobs=tuple(
-                JobRealization(job_id, arrival_min, SERVICE_TIME_MIN)
+            trucks=tuple(
+                TruckRealization(_truck_id(job_id), arrival_min)
                 for job_id, arrival_min in arrivals.items()
-            )
+            ),
+            jobs=tuple(JobRealization(job_id, SERVICE_TIME_MIN) for job_id in arrivals),
         ),
         docks=tuple(DockDefinition(dock_id) for dock_id in dock_ids),
     )

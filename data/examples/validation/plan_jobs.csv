@@ -1,0 +1,5 @@
+job_id,truck_id,sequence,operation,section,estimated_service_time_min
+J001,T01,1,UNLOAD,A,45
+J002,T02,1,UNLOAD,A,20
+J003,T02,2,LOAD,C,30
+J004,T03,1,UNLOAD,B,40

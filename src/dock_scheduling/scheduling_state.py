@@ -30,15 +30,17 @@ def build_scheduling_state(
     current_time_min: int, plan: PlanSnapshot, runtime: RuntimeState
 ) -> SchedulingState:
     # takes only the plan, realization data never reaches the scheduler
-    plan_by_id = {job.job_id: job for job in plan.jobs}
+    planned_by_job_id = {
+        job.job_id: (truck, job) for truck in plan.trucks for job in truck.jobs
+    }
     waiting_jobs = []
     for job_id in runtime.waiting_job_ids:
-        job_plan = plan_by_id[job_id]
+        truck_plan, job_plan = planned_by_job_id[job_id]
         waiting_jobs.append(
             WaitingJobView(
                 job_id=job_id,
                 observed_arrival_min=runtime.jobs[job_id].observed_arrival_min,
-                priority=job_plan.priority,
+                priority=truck_plan.priority,
                 estimated_service_time_min=job_plan.estimated_service_time_min,
             )
         )

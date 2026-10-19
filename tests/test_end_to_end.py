@@ -11,7 +11,8 @@ FCFS_EXAMPLE_DIR = Path(__file__).parent.parent / "data" / "examples" / "fcfs"
 
 def test_example_csv_scenario_runs_to_completion_with_fcfs():
     scenario = load_scenario(
-        FCFS_EXAMPLE_DIR / "plan.csv",
+        FCFS_EXAMPLE_DIR / "plan_trucks.csv",
+        FCFS_EXAMPLE_DIR / "plan_jobs.csv",
         FCFS_EXAMPLE_DIR / "realization.csv",
         (DockDefinition("D01"), DockDefinition("D02")),
     )

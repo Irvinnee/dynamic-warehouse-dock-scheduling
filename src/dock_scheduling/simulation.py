@@ -31,10 +31,23 @@ class WarehouseSimulation:
             realization.job_id: realization.actual_service_time_min
             for realization in scenario.realization.jobs
         }
-        for realization in scenario.realization.jobs:
+        # Temporary: a truck arrives as its only job until later jobs of a truck
+        # can become eligible after their predecessor
+        job_id_by_truck_id = {}
+        for truck in scenario.plan.trucks:
+            if len(truck.jobs) != 1:
+                raise ValueError(
+                    f"truck {truck.truck_id!r} has {len(truck.jobs)} jobs, "
+                    "the simulation supports only trucks with exactly one job"
+                )
+            job_id_by_truck_id[truck.truck_id] = truck.jobs[0].job_id
+        for realization in scenario.realization.trucks:
             if realization.actual_arrival_min < DAY_END_MIN:
                 self._env.process(
-                    self._arrive(realization.job_id, realization.actual_arrival_min)
+                    self._arrive(
+                        job_id_by_truck_id[realization.truck_id],
+                        realization.actual_arrival_min,
+                    )
                 )
 
     def run(self, until_min: int | None = None) -> None:

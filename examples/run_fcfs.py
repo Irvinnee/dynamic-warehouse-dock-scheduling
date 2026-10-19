@@ -10,7 +10,8 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "examples" / "fcfs"
 
 def main() -> None:
     scenario = load_scenario(
-        DATA_DIR / "plan.csv",
+        DATA_DIR / "plan_trucks.csv",
+        DATA_DIR / "plan_jobs.csv",
         DATA_DIR / "realization.csv",
         (DockDefinition("D01"), DockDefinition("D02")),
     )

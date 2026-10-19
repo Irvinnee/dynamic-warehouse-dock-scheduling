@@ -2,6 +2,7 @@ import csv
 import re
 from collections import Counter
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from dock_scheduling.domain import (
@@ -12,19 +13,26 @@ from dock_scheduling.domain import (
     PlanSnapshot,
     RealizationDefinition,
     ScenarioDefinition,
+    TruckPlan,
+    TruckRealization,
 )
 from dock_scheduling.scenario_validation import validate_scenario
 
-PLAN_FIELDS = (
+PLAN_TRUCK_FIELDS = ("truck_id", "planned_arrival_min", "priority")
+PLAN_JOB_FIELDS = (
     "job_id",
-    "planned_arrival_min",
+    "truck_id",
+    "sequence",
     "operation",
-    "priority",
+    "section",
     "estimated_service_time_min",
-    "unload_section",
-    "load_section",
 )
-REALIZATION_FIELDS = ("job_id", "actual_arrival_min", "actual_service_time_min")
+REALIZATION_FIELDS = (
+    "truck_id",
+    "job_id",
+    "actual_arrival_min",
+    "actual_service_time_min",
+)
 
 _PRIORITY_VALUES = {"true": True, "false": False}
 
@@ -46,24 +54,52 @@ class _FieldError(Exception):
         self.expected = expected
 
 
+@dataclass(frozen=True)
+class _TruckRow:
+    truck_id: str
+    planned_arrival_min: int
+    priority: bool
+
+
+@dataclass(frozen=True)
+class _JobRow:
+    truck_id: str
+    sequence: int
+    job: JobPlan
+
+
+@dataclass(frozen=True)
+class _RealizationRow:
+    truck_id: str
+    actual_arrival_min: int
+    job: JobRealization
+
+
 def load_scenario(
-    plan_path: Path,
+    plan_trucks_path: Path,
+    plan_jobs_path: Path,
     realization_path: Path,
     docks: tuple[DockDefinition, ...],
 ) -> ScenarioDefinition:
     errors: list[str] = []
-    plan_jobs = _read_rows(plan_path, PLAN_FIELDS, _parse_job_plan, errors)
-    realization_jobs = _read_rows(
-        realization_path, REALIZATION_FIELDS, _parse_job_realization, errors
+    truck_rows = _read_rows(
+        plan_trucks_path, PLAN_TRUCK_FIELDS, _parse_truck_row, errors
+    )
+    job_rows = _read_rows(plan_jobs_path, PLAN_JOB_FIELDS, _parse_job_row, errors)
+    realization_rows = _read_rows(
+        realization_path, REALIZATION_FIELDS, _parse_realization_row, errors
     )
     if errors:
         raise CsvParseError(errors)
 
-    scenario = ScenarioDefinition(
-        plan=PlanSnapshot(jobs=plan_jobs),
-        realization=RealizationDefinition(jobs=realization_jobs),
-        docks=docks,
+    plan = _build_plan(plan_trucks_path, truck_rows, plan_jobs_path, job_rows, errors)
+    realization = _build_realization(
+        realization_path, realization_rows, plan_jobs_path, job_rows, errors
     )
+    if errors:
+        raise CsvParseError(errors)
+
+    scenario = ScenarioDefinition(plan=plan, realization=realization, docks=docks)
     validate_scenario(scenario)
     return scenario
 
@@ -73,8 +109,8 @@ def _read_rows[T](
     fields: tuple[str, ...],
     parse_row: Callable[[dict[str, str]], T],
     errors: list[str],
-) -> tuple[T, ...]:
-    parsed: list[T] = []
+) -> list[tuple[int, T]]:
+    parsed: list[tuple[int, T]] = []
     with path.open(encoding="utf-8-sig", newline="") as csv_file:
         reader = csv.DictReader(csv_file)
         header = reader.fieldnames or []
@@ -86,7 +122,7 @@ def _read_rows[T](
                 f"{path}: header must contain each of {list(fields)} exactly once, "
                 f"missing {missing}, unexpected {unexpected}, duplicated {duplicated}"
             )
-            return ()
+            return []
 
         for row in reader:
             location = f"{path} line {reader.line_num}"
@@ -97,32 +133,154 @@ def _read_rows[T](
                 )
                 continue
             try:
-                parsed.append(parse_row(row))
+                parsed.append((reader.line_num, parse_row(row)))
             except _FieldError as error:
                 errors.append(
                     f"{location}, field {error.field_name!r}: invalid value "
                     f"{error.value!r}, expected {error.expected}"
                 )
-    return tuple(parsed)
+    return parsed
 
 
-def _parse_job_plan(row: dict[str, str]) -> JobPlan:
-    return JobPlan(
-        job_id=row["job_id"],
-        planned_arrival_min=_parse_integer(row, "planned_arrival_min"),
-        operation=_parse_operation(row),
-        priority=_parse_priority(row),
-        estimated_service_time_min=_parse_integer(row, "estimated_service_time_min"),
-        unload_section=row["unload_section"] or None,
-        load_section=row["load_section"] or None,
+def _build_plan(
+    plan_trucks_path: Path,
+    truck_rows: list[tuple[int, _TruckRow]],
+    plan_jobs_path: Path,
+    job_rows: list[tuple[int, _JobRow]],
+    errors: list[str],
+) -> PlanSnapshot:
+    known_truck_ids = {truck_row.truck_id for _, truck_row in truck_rows}
+    rows_by_truck: dict[str, list[tuple[int, _JobRow]]] = {}
+    for line, job_row in job_rows:
+        if job_row.truck_id not in known_truck_ids:
+            errors.append(
+                f"{plan_jobs_path} line {line}: truck_id {job_row.truck_id!r} "
+                f"is not defined in {plan_trucks_path}"
+            )
+            continue
+        rows_by_truck.setdefault(job_row.truck_id, []).append((line, job_row))
+    for truck_id, rows in rows_by_truck.items():
+        _check_sequence(plan_jobs_path, truck_id, rows, errors)
+
+    return PlanSnapshot(
+        trucks=tuple(
+            TruckPlan(
+                truck_id=truck_row.truck_id,
+                planned_arrival_min=truck_row.planned_arrival_min,
+                priority=truck_row.priority,
+                jobs=tuple(
+                    job_row.job
+                    for _, job_row in sorted(
+                        rows_by_truck.get(truck_row.truck_id, []),
+                        key=lambda line_and_row: line_and_row[1].sequence,
+                    )
+                ),
+            )
+            for _, truck_row in truck_rows
+        )
     )
 
 
-def _parse_job_realization(row: dict[str, str]) -> JobRealization:
-    return JobRealization(
-        job_id=row["job_id"],
+def _check_sequence(
+    path: Path, truck_id: str, rows: list[tuple[int, _JobRow]], errors: list[str]
+) -> None:
+    lines_by_sequence: dict[int, list[int]] = {}
+    for line, job_row in rows:
+        lines_by_sequence.setdefault(job_row.sequence, []).append(line)
+    repeated = {
+        sequence: lines
+        for sequence, lines in lines_by_sequence.items()
+        if len(lines) > 1
+    }
+    for sequence, lines in repeated.items():
+        errors.append(
+            f"{path} lines {', '.join(map(str, lines))}: truck {truck_id!r} "
+            f"repeats sequence {sequence}"
+        )
+    sequences = sorted(lines_by_sequence)
+    if not repeated and sequences != list(range(1, len(rows) + 1)):
+        errors.append(
+            f"{path}: truck {truck_id!r} sequence must be contiguous from 1 to "
+            f"{len(rows)}, got {sequences}"
+        )
+
+
+def _build_realization(
+    realization_path: Path,
+    realization_rows: list[tuple[int, _RealizationRow]],
+    plan_jobs_path: Path,
+    job_rows: list[tuple[int, _JobRow]],
+    errors: list[str],
+) -> RealizationDefinition:
+    # a duplicated job_id can belong to several trucks, validation reports that,
+    # here a row just has to match one of them
+    planned_trucks_by_job: dict[str, set[str]] = {}
+    for _, job_row in job_rows:
+        planned_trucks_by_job.setdefault(job_row.job.job_id, set()).add(
+            job_row.truck_id
+        )
+
+    first_arrival_by_truck: dict[str, tuple[int, int]] = {}
+    for line, realization_row in realization_rows:
+        truck_id = realization_row.truck_id
+        first_arrival_min, first_line = first_arrival_by_truck.setdefault(
+            truck_id, (realization_row.actual_arrival_min, line)
+        )
+        if realization_row.actual_arrival_min != first_arrival_min:
+            errors.append(
+                f"{realization_path} line {line}: truck {truck_id!r} "
+                f"actual_arrival_min {realization_row.actual_arrival_min} differs "
+                f"from {first_arrival_min} on line {first_line}"
+            )
+        job_id = realization_row.job.job_id
+        planned_trucks = planned_trucks_by_job.get(job_id)
+        if planned_trucks is not None and truck_id not in planned_trucks:
+            planned = " or ".join(repr(planned) for planned in sorted(planned_trucks))
+            errors.append(
+                f"{realization_path} line {line}: job {job_id!r} belongs to truck "
+                f"{planned} in {plan_jobs_path}, got {truck_id!r}"
+            )
+
+    return RealizationDefinition(
+        trucks=tuple(
+            TruckRealization(truck_id, arrival_min)
+            for truck_id, (arrival_min, _) in first_arrival_by_truck.items()
+        ),
+        jobs=tuple(realization_row.job for _, realization_row in realization_rows),
+    )
+
+
+def _parse_truck_row(row: dict[str, str]) -> _TruckRow:
+    return _TruckRow(
+        truck_id=row["truck_id"],
+        planned_arrival_min=_parse_integer(row, "planned_arrival_min"),
+        priority=_parse_priority(row),
+    )
+
+
+def _parse_job_row(row: dict[str, str]) -> _JobRow:
+    return _JobRow(
+        truck_id=row["truck_id"],
+        sequence=_parse_integer(row, "sequence"),
+        job=JobPlan(
+            job_id=row["job_id"],
+            operation=_parse_operation(row),
+            section=row["section"],
+            estimated_service_time_min=_parse_integer(
+                row, "estimated_service_time_min"
+            ),
+        ),
+    )
+
+
+def _parse_realization_row(row: dict[str, str]) -> _RealizationRow:
+    return _RealizationRow(
+        truck_id=row["truck_id"],
         actual_arrival_min=_parse_integer(row, "actual_arrival_min"),
-        actual_service_time_min=_parse_integer(row, "actual_service_time_min"),
+        job=JobRealization(
+            job_id=row["job_id"],
+            actual_service_time_min=_parse_integer(row, "actual_service_time_min"),
+        ),
     )
 
 
