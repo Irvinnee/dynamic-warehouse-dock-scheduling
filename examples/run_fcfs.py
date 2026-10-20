@@ -20,17 +20,17 @@ def main() -> None:
 
     print("Events")
     for record in simulation.event_log.records:
-        line = f"{record.time_min:<4} {record.event_type.value:<14} {record.job_id}"
-        if record.dock_id is not None:
-            line += f"  {record.dock_id}"
+        line = f"{record.time_min:<4} {record.event_type.value:<14} {record.truck_id}"
+        if record.job_id is not None:
+            line += f"  {record.job_id}  {record.dock_id}"
         print(line)
 
     print("\nJobs")
     for job in simulation.runtime.jobs.values():
-        waited_min = job.service_start_min - job.observed_arrival_min
+        waited_min = job.service_start_min - job.eligible_since_min
         print(
-            f"{job.job_id}  {job.status.value}  "
-            f"arrived {job.observed_arrival_min}  "
+            f"{job.job_id}  {job.truck_id}  {job.status.value}  "
+            f"eligible {job.eligible_since_min}  "
             f"started {job.service_start_min}  "
             f"ended {job.service_end_min}  "
             f"waited {waited_min:<2}  "

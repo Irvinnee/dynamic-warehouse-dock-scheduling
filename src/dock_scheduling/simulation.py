@@ -4,12 +4,13 @@ from collections.abc import Generator
 import simpy
 
 from dock_scheduling.decision import validate_batch
-from dock_scheduling.domain import ScenarioDefinition
+from dock_scheduling.domain import JobPlan, ScenarioDefinition
 from dock_scheduling.event_log import EventLog, EventType
 from dock_scheduling.runtime import (
     DockStatus,
     JobRuntime,
     JobStatus,
+    TruckRuntime,
     create_runtime_state,
 )
 from dock_scheduling.scheduler import Scheduler
@@ -23,6 +24,9 @@ class WarehouseSimulation:
         self._env = simpy.Environment()
         self._scheduler = scheduler
         self._plan = scenario.plan
+        self._planned_jobs_by_truck_id: dict[str, tuple[JobPlan, ...]] = {
+            truck.truck_id: truck.jobs for truck in scenario.plan.trucks
+        }
         self._decision_requested = False
         self.runtime = create_runtime_state(scenario)
         self.event_log = EventLog()
@@ -31,23 +35,10 @@ class WarehouseSimulation:
             realization.job_id: realization.actual_service_time_min
             for realization in scenario.realization.jobs
         }
-        # Temporary: a truck arrives as its only job until later jobs of a truck
-        # can become eligible after their predecessor
-        job_id_by_truck_id = {}
-        for truck in scenario.plan.trucks:
-            if len(truck.jobs) != 1:
-                raise ValueError(
-                    f"truck {truck.truck_id!r} has {len(truck.jobs)} jobs, "
-                    "the simulation supports only trucks with exactly one job"
-                )
-            job_id_by_truck_id[truck.truck_id] = truck.jobs[0].job_id
         for realization in scenario.realization.trucks:
             if realization.actual_arrival_min < DAY_END_MIN:
                 self._env.process(
-                    self._arrive(
-                        job_id_by_truck_id[realization.truck_id],
-                        realization.actual_arrival_min,
-                    )
+                    self._arrive(realization.truck_id, realization.actual_arrival_min)
                 )
 
     def run(self, until_min: int | None = None) -> None:
@@ -62,6 +53,13 @@ class WarehouseSimulation:
                 self._decision_requested = False
                 self._decide(int(current_min))
 
+    def _activate_job(self, truck: TruckRuntime, job_index: int) -> None:
+        job_id = self._planned_jobs_by_truck_id[truck.truck_id][job_index].job_id
+        truck.current_job_index = job_index
+        self.runtime.jobs[job_id] = JobRuntime(
+            job_id, truck.truck_id, JobStatus.WAITING, int(self._env.now)
+        )
+
     def _start_service(self, job_id: str, dock_id: str) -> None:
         now_min = int(self._env.now)
         job = self.runtime.jobs[job_id]
@@ -71,7 +69,9 @@ class WarehouseSimulation:
         dock = self.runtime.docks[dock_id]
         dock.status = DockStatus.BUSY
         dock.current_job_id = job_id
-        self.event_log.record(now_min, EventType.SERVICE_START, job_id, dock_id)
+        self.event_log.record(
+            now_min, EventType.JOB_START, job.truck_id, job_id, dock_id
+        )
         self._env.process(self._serve(job_id, dock_id))
 
     def _decide(self, current_min: int) -> None:
@@ -82,12 +82,14 @@ class WarehouseSimulation:
             self._start_service(decision.job_id, decision.dock_id)
 
     def _arrive(
-        self, job_id: str, actual_arrival_min: int
+        self, truck_id: str, actual_arrival_min: int
     ) -> Generator[simpy.Event, None, None]:
         yield self._env.timeout(actual_arrival_min)
         now_min = int(self._env.now)
-        self.runtime.jobs[job_id] = JobRuntime(job_id, JobStatus.WAITING, now_min)
-        self.event_log.record(now_min, EventType.JOB_ARRIVAL, job_id)
+        truck = TruckRuntime(truck_id, now_min)
+        self.runtime.trucks[truck_id] = truck
+        self._activate_job(truck, 0)
+        self.event_log.record(now_min, EventType.TRUCK_ARRIVAL, truck_id)
         self._decision_requested = True
 
     def _serve(self, job_id: str, dock_id: str) -> Generator[simpy.Event, None, None]:
@@ -99,5 +101,11 @@ class WarehouseSimulation:
         dock = self.runtime.docks[dock_id]
         dock.status = DockStatus.FREE
         dock.current_job_id = None
-        self.event_log.record(now_min, EventType.SERVICE_END, job_id, dock_id)
+        self.event_log.record(now_min, EventType.JOB_END, job.truck_id, job_id, dock_id)
+        truck = self.runtime.trucks[job.truck_id]
+        next_job_index = truck.current_job_index + 1
+        if next_job_index < len(self._planned_jobs_by_truck_id[truck.truck_id]):
+            self._activate_job(truck, next_job_index)
+        else:
+            truck.completed_min = now_min
         self._decision_requested = True

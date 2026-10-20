@@ -3,16 +3,17 @@ from enum import Enum
 
 
 class EventType(Enum):
-    JOB_ARRIVAL = "JOB_ARRIVAL"
-    SERVICE_START = "SERVICE_START"
-    SERVICE_END = "SERVICE_END"
+    TRUCK_ARRIVAL = "TRUCK_ARRIVAL"
+    JOB_START = "JOB_START"
+    JOB_END = "JOB_END"
 
 
 @dataclass(frozen=True)
 class EventRecord:
     time_min: int
     event_type: EventType
-    job_id: str
+    truck_id: str
+    job_id: str | None
     dock_id: str | None
 
 
@@ -24,10 +25,13 @@ class EventLog:
         self,
         time_min: int,
         event_type: EventType,
-        job_id: str,
+        truck_id: str,
+        job_id: str | None = None,
         dock_id: str | None = None,
     ) -> None:
-        self._records.append(EventRecord(time_min, event_type, job_id, dock_id))
+        self._records.append(
+            EventRecord(time_min, event_type, truck_id, job_id, dock_id)
+        )
 
     @property
     def records(self) -> tuple[EventRecord, ...]:

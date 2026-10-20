@@ -16,10 +16,19 @@ class DockStatus(Enum):
 
 
 @dataclass
+class TruckRuntime:
+    truck_id: str
+    observed_arrival_min: int
+    current_job_index: int = 0
+    completed_min: int | None = None
+
+
+@dataclass
 class JobRuntime:
     job_id: str
+    truck_id: str
     status: JobStatus
-    observed_arrival_min: int
+    eligible_since_min: int
     service_start_min: int | None = None
     service_end_min: int | None = None
     assigned_dock_id: str | None = None
@@ -34,11 +43,12 @@ class DockRuntime:
 
 @dataclass
 class RuntimeState:
+    trucks: dict[str, TruckRuntime]
     jobs: dict[str, JobRuntime]
     docks: dict[str, DockRuntime]
 
     @property
-    def waiting_job_ids(self) -> list[str]:
+    def eligible_job_ids(self) -> list[str]:
         return [
             job.job_id for job in self.jobs.values() if job.status is JobStatus.WAITING
         ]
@@ -46,6 +56,7 @@ class RuntimeState:
 
 def create_runtime_state(scenario: ScenarioDefinition) -> RuntimeState:
     return RuntimeState(
+        trucks={},
         jobs={},
         docks={dock.dock_id: DockRuntime(dock.dock_id) for dock in scenario.docks},
     )

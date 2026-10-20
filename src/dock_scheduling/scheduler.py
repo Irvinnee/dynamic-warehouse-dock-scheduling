@@ -10,11 +10,11 @@ class Scheduler(Protocol):
 
 class FCFSScheduler:
     def schedule(self, state: SchedulingState) -> tuple[Assign, ...]:
-        waiting_jobs = sorted(
-            state.waiting_jobs, key=lambda job: (job.observed_arrival_min, job.job_id)
+        eligible_jobs = sorted(
+            state.eligible_jobs, key=lambda job: (job.eligible_since_min, job.job_id)
         )
         free_docks = sorted(state.free_docks, key=lambda dock: dock.dock_id)
         return tuple(
             Assign(job.job_id, dock.dock_id)
-            for job, dock in zip(waiting_jobs, free_docks)
+            for job, dock in zip(eligible_jobs, free_docks)
         )

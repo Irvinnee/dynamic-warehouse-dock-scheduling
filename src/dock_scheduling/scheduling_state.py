@@ -1,15 +1,18 @@
 from dataclasses import dataclass
 
-from dock_scheduling.domain import PlanSnapshot
+from dock_scheduling.domain import OperationType, PlanSnapshot
 from dock_scheduling.runtime import DockStatus, RuntimeState
 
 
 @dataclass(frozen=True)
-class WaitingJobView:
+class EligibleJobView:
     job_id: str
-    observed_arrival_min: int
+    truck_id: str
+    operation: OperationType
+    section: str
     priority: bool
     estimated_service_time_min: int
+    eligible_since_min: int
 
 
 @dataclass(frozen=True)
@@ -22,7 +25,7 @@ class SchedulingState:
     """Tuple order carries no scheduling meaning."""
 
     current_time_min: int
-    waiting_jobs: tuple[WaitingJobView, ...]
+    eligible_jobs: tuple[EligibleJobView, ...]
     free_docks: tuple[FreeDockView, ...]
 
 
@@ -33,20 +36,23 @@ def build_scheduling_state(
     planned_by_job_id = {
         job.job_id: (truck, job) for truck in plan.trucks for job in truck.jobs
     }
-    waiting_jobs = []
-    for job_id in runtime.waiting_job_ids:
+    eligible_jobs = []
+    for job_id in runtime.eligible_job_ids:
         truck_plan, job_plan = planned_by_job_id[job_id]
-        waiting_jobs.append(
-            WaitingJobView(
+        eligible_jobs.append(
+            EligibleJobView(
                 job_id=job_id,
-                observed_arrival_min=runtime.jobs[job_id].observed_arrival_min,
+                truck_id=truck_plan.truck_id,
+                operation=job_plan.operation,
+                section=job_plan.section,
                 priority=truck_plan.priority,
                 estimated_service_time_min=job_plan.estimated_service_time_min,
+                eligible_since_min=runtime.jobs[job_id].eligible_since_min,
             )
         )
     return SchedulingState(
         current_time_min=current_time_min,
-        waiting_jobs=tuple(waiting_jobs),
+        eligible_jobs=tuple(eligible_jobs),
         free_docks=tuple(
             FreeDockView(dock.dock_id)
             for dock in runtime.docks.values()
