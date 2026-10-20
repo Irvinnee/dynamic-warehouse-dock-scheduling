@@ -34,12 +34,13 @@ T03,J201,110,40
 """
 
 
-def _run(directory: Path) -> WarehouseSimulation:
+def _run(directory: Path, relocation_time_min: int) -> WarehouseSimulation:
     scenario = load_scenario(
         directory / "plan_trucks.csv",
         directory / "plan_jobs.csv",
         directory / "realization.csv",
         DOCKS,
+        relocation_time_min,
     )
     simulation = WarehouseSimulation(scenario, FCFSScheduler())
     simulation.run()
@@ -57,7 +58,7 @@ def _assert_events(
 
 
 def test_example_csv_scenario_runs_to_completion_with_fcfs():
-    simulation = _run(FCFS_EXAMPLE_DIR)
+    simulation = _run(FCFS_EXAMPLE_DIR, relocation_time_min=5)
 
     _assert_events(
         simulation,
@@ -79,15 +80,15 @@ def test_example_csv_scenario_runs_to_completion_with_fcfs():
     } == {"T01": 140, "T02": 160, "T03": 160}
 
 
-def test_multi_job_csv_scenario_with_waiting_between_jobs(tmp_path):
+def test_multi_job_csv_scenario_with_waiting_and_relocation(tmp_path):
     (tmp_path / "plan_trucks.csv").write_text(MULTI_JOB_PLAN_TRUCKS)
     (tmp_path / "plan_jobs.csv").write_text(MULTI_JOB_PLAN_JOBS)
     (tmp_path / "realization.csv").write_text(MULTI_JOB_REALIZATION)
 
-    simulation = _run(tmp_path)
+    simulation = _run(tmp_path, relocation_time_min=5)
 
     # at 130 D01 goes to J201 (waiting since 110), J002 has to wait for D02
-    # until 150
+    # at 150 and relocates there from D01
     _assert_events(
         simulation,
         [
@@ -99,12 +100,13 @@ def test_multi_job_csv_scenario_with_waiting_between_jobs(tmp_path):
             EventRecord(130, EventType.JOB_END, "T01", "J001", "D01"),
             EventRecord(130, EventType.JOB_START, "T03", "J201", "D01"),
             EventRecord(150, EventType.JOB_END, "T02", "J101", "D02"),
-            EventRecord(150, EventType.JOB_START, "T01", "J002", "D02"),
+            EventRecord(150, EventType.RELOCATION_START, "T01", "J002", "D02"),
+            EventRecord(155, EventType.JOB_START, "T01", "J002", "D02"),
             EventRecord(170, EventType.JOB_END, "T03", "J201", "D01"),
-            EventRecord(170, EventType.JOB_END, "T01", "J002", "D02"),
+            EventRecord(175, EventType.JOB_END, "T01", "J002", "D02"),
         ],
     )
     assert {
         truck_id: truck.completed_min
         for truck_id, truck in simulation.runtime.trucks.items()
-    } == {"T01": 170, "T02": 150, "T03": 170}
+    } == {"T01": 175, "T02": 150, "T03": 170}

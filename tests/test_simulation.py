@@ -34,6 +34,7 @@ class _ScriptedScheduler:
 def _scenario(
     trucks: dict[str, tuple[int, list[tuple[str, int]]]],
     dock_ids: tuple[str, ...] = ("D01",),
+    relocation_time_min: int = 0,
 ) -> ScenarioDefinition:
     """trucks maps truck_id to (actual arrival, [(job_id, actual service time)])."""
     return ScenarioDefinition(
@@ -68,6 +69,7 @@ def _scenario(
             ),
         ),
         docks=tuple(DockDefinition(dock_id) for dock_id in dock_ids),
+        relocation_time_min=relocation_time_min,
     )
 
 
@@ -213,6 +215,73 @@ def test_invalid_assignment_batch_is_rejected_without_starting_any_job():
     assert EventType.JOB_START not in {
         record.event_type for record in simulation.event_log.records
     }
+
+
+@pytest.mark.parametrize(
+    ("second_dock_id", "expected_start_min", "expected_relocation_starts"),
+    [("D01", 120, []), ("D02", 125, [120])],
+    ids=["same_dock", "other_dock"],
+)
+def test_relocation_time_is_added_only_when_the_dock_changes(
+    second_dock_id, expected_start_min, expected_relocation_starts
+):
+    simulation = WarehouseSimulation(
+        _scenario(
+            {"T01": (100, [("J001", 20), ("J002", 10)])},
+            dock_ids=("D01", "D02"),
+            relocation_time_min=5,
+        ),
+        _ScriptedScheduler(
+            {100: (Assign("J001", "D01"),), 120: (Assign("J002", second_dock_id),)}
+        ),
+    )
+
+    simulation.run()
+
+    assert _timeline(simulation, "J002") == (
+        120,
+        expected_start_min,
+        expected_start_min + 10,
+    )
+    assert [
+        record.time_min
+        for record in simulation.event_log.records
+        if record.event_type is EventType.RELOCATION_START
+    ] == expected_relocation_starts
+
+
+def test_relocation_reserves_the_destination_dock():
+    scheduler = _ScriptedScheduler(
+        {
+            100: (Assign("J001", "D01"),),
+            120: (Assign("J002", "D02"), Assign("J101", "D01")),
+            122: (Assign("J201", "D02"),),
+        }
+    )
+    simulation = WarehouseSimulation(
+        _scenario(
+            {
+                "T01": (100, [("J001", 20), ("J002", 10)]),
+                "T02": (120, [("J101", 30)]),
+                "T03": (122, [("J201", 30)]),
+            },
+            dock_ids=("D01", "D02"),
+            relocation_time_min=5,
+        ),
+        scheduler,
+    )
+
+    simulation.run(until_min=122)
+
+    # J002 is still relocating to D02 and someone else already took the dock it
+    # left, so at 122 nothing is free for J201 and taking D02 gets rejected
+    assert simulation.runtime.jobs["J002"].status is JobStatus.RELOCATING
+    assert simulation.runtime.jobs["J101"].status is JobStatus.IN_SERVICE
+    with pytest.raises(InvalidDecisionError, match="'D02'"):
+        simulation.run()
+    state_at_122 = scheduler.states[-1]
+    assert state_at_122.current_time_min == 122
+    assert state_at_122.free_docks == ()
 
 
 def test_day_cutoff_admits_arrivals_before_1440_and_lets_them_finish():

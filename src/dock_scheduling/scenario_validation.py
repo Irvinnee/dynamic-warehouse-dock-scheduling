@@ -78,6 +78,10 @@ def validate_scenario(scenario: ScenarioDefinition) -> None:
         f"duplicate dock_id {dock_id!r}"
         for dock_id in _duplicates(dock.dock_id for dock in scenario.docks)
     )
+    if scenario.relocation_time_min < 0:
+        errors.append(
+            f"relocation_time_min must be >= 0, got {scenario.relocation_time_min}"
+        )
 
     for truck in trucks:
         if not truck.jobs:

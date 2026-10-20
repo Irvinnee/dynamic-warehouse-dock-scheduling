@@ -4,6 +4,7 @@ from enum import Enum
 
 class EventType(Enum):
     TRUCK_ARRIVAL = "TRUCK_ARRIVAL"
+    RELOCATION_START = "RELOCATION_START"
     JOB_START = "JOB_START"
     JOB_END = "JOB_END"
 

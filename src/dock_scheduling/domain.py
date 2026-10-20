@@ -59,3 +59,4 @@ class ScenarioDefinition:
     plan: PlanSnapshot
     realization: RealizationDefinition
     docks: tuple[DockDefinition, ...]
+    relocation_time_min: int

@@ -12,6 +12,7 @@ from dock_scheduling.runtime import (
     JobStatus,
     TruckRuntime,
     create_runtime_state,
+    previous_dock_id,
 )
 from dock_scheduling.scheduler import Scheduler
 from dock_scheduling.scheduling_state import build_scheduling_state
@@ -24,6 +25,7 @@ class WarehouseSimulation:
         self._env = simpy.Environment()
         self._scheduler = scheduler
         self._plan = scenario.plan
+        self._relocation_time_min = scenario.relocation_time_min
         self._planned_jobs_by_truck_id: dict[str, tuple[JobPlan, ...]] = {
             truck.truck_id: truck.jobs for truck in scenario.plan.trucks
         }
@@ -60,15 +62,38 @@ class WarehouseSimulation:
             job_id, truck.truck_id, JobStatus.WAITING, int(self._env.now)
         )
 
+    def _assign(self, job_id: str, dock_id: str) -> None:
+        now_min = int(self._env.now)
+        job = self.runtime.jobs[job_id]
+        truck = self.runtime.trucks[job.truck_id]
+        from_dock_id = previous_dock_id(
+            self.runtime, truck, self._planned_jobs_by_truck_id[truck.truck_id]
+        )
+        job.assigned_min = now_min
+        job.assigned_dock_id = dock_id
+        # dock is taken already, even while the truck is still relocating
+        dock = self.runtime.docks[dock_id]
+        dock.status = DockStatus.BUSY
+        dock.current_job_id = job_id
+        relocates = (
+            from_dock_id is not None
+            and from_dock_id != dock_id
+            and self._relocation_time_min > 0
+        )
+        if relocates:
+            job.status = JobStatus.RELOCATING
+            self.event_log.record(
+                now_min, EventType.RELOCATION_START, job.truck_id, job_id, dock_id
+            )
+            self._env.process(self._relocate(job_id, dock_id))
+        else:
+            self._start_service(job_id, dock_id)
+
     def _start_service(self, job_id: str, dock_id: str) -> None:
         now_min = int(self._env.now)
         job = self.runtime.jobs[job_id]
         job.status = JobStatus.IN_SERVICE
         job.service_start_min = now_min
-        job.assigned_dock_id = dock_id
-        dock = self.runtime.docks[dock_id]
-        dock.status = DockStatus.BUSY
-        dock.current_job_id = job_id
         self.event_log.record(
             now_min, EventType.JOB_START, job.truck_id, job_id, dock_id
         )
@@ -79,7 +104,7 @@ class WarehouseSimulation:
         decisions = self._scheduler.schedule(state)
         validate_batch(decisions, self.runtime)
         for decision in decisions:
-            self._start_service(decision.job_id, decision.dock_id)
+            self._assign(decision.job_id, decision.dock_id)
 
     def _arrive(
         self, truck_id: str, actual_arrival_min: int
@@ -91,6 +116,13 @@ class WarehouseSimulation:
         self._activate_job(truck, 0)
         self.event_log.record(now_min, EventType.TRUCK_ARRIVAL, truck_id)
         self._decision_requested = True
+
+    def _relocate(
+        self, job_id: str, dock_id: str
+    ) -> Generator[simpy.Event, None, None]:
+        yield self._env.timeout(self._relocation_time_min)
+        # no decision here, nothing got freed or became eligible
+        self._start_service(job_id, dock_id)
 
     def _serve(self, job_id: str, dock_id: str) -> Generator[simpy.Event, None, None]:
         yield self._env.timeout(self._actual_service_time_min[job_id])

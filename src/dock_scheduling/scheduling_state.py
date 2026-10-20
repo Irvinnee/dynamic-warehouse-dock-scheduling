@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from dock_scheduling.domain import OperationType, PlanSnapshot
-from dock_scheduling.runtime import DockStatus, RuntimeState
+from dock_scheduling.runtime import DockStatus, RuntimeState, previous_dock_id
 
 
 @dataclass(frozen=True)
@@ -13,6 +13,7 @@ class EligibleJobView:
     priority: bool
     estimated_service_time_min: int
     eligible_since_min: int
+    previous_dock_id: str | None
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,9 @@ def build_scheduling_state(
                 priority=truck_plan.priority,
                 estimated_service_time_min=job_plan.estimated_service_time_min,
                 eligible_since_min=runtime.jobs[job_id].eligible_since_min,
+                previous_dock_id=previous_dock_id(
+                    runtime, runtime.trucks[truck_plan.truck_id], truck_plan.jobs
+                ),
             )
         )
     return SchedulingState(

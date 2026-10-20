@@ -80,6 +80,7 @@ def load_scenario(
     plan_jobs_path: Path,
     realization_path: Path,
     docks: tuple[DockDefinition, ...],
+    relocation_time_min: int,
 ) -> ScenarioDefinition:
     errors: list[str] = []
     truck_rows = _read_rows(
@@ -99,7 +100,12 @@ def load_scenario(
     if errors:
         raise CsvParseError(errors)
 
-    scenario = ScenarioDefinition(plan=plan, realization=realization, docks=docks)
+    scenario = ScenarioDefinition(
+        plan=plan,
+        realization=realization,
+        docks=docks,
+        relocation_time_min=relocation_time_min,
+    )
     validate_scenario(scenario)
     return scenario
 

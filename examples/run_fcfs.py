@@ -14,6 +14,7 @@ def main() -> None:
         DATA_DIR / "plan_jobs.csv",
         DATA_DIR / "realization.csv",
         (DockDefinition("D01"), DockDefinition("D02")),
+        relocation_time_min=5,
     )
     simulation = WarehouseSimulation(scenario, FCFSScheduler())
     simulation.run()

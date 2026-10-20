@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from dock_scheduling.domain import ScenarioDefinition
+from dock_scheduling.domain import JobPlan, ScenarioDefinition
 
 
 class JobStatus(Enum):
     WAITING = "WAITING"
+    RELOCATING = "RELOCATING"
     IN_SERVICE = "IN_SERVICE"
     COMPLETED = "COMPLETED"
 
@@ -32,6 +33,7 @@ class JobRuntime:
     service_start_min: int | None = None
     service_end_min: int | None = None
     assigned_dock_id: str | None = None
+    assigned_min: int | None = None
 
 
 @dataclass
@@ -52,6 +54,15 @@ class RuntimeState:
         return [
             job.job_id for job in self.jobs.values() if job.status is JobStatus.WAITING
         ]
+
+
+def previous_dock_id(
+    runtime: RuntimeState, truck: TruckRuntime, planned_jobs: tuple[JobPlan, ...]
+) -> str | None:
+    if truck.current_job_index == 0:
+        return None
+    previous_job_id = planned_jobs[truck.current_job_index - 1].job_id
+    return runtime.jobs[previous_job_id].assigned_dock_id
 
 
 def create_runtime_state(scenario: ScenarioDefinition) -> RuntimeState:

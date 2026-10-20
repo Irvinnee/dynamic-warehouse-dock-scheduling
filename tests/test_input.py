@@ -30,6 +30,7 @@ def _load(
     realization: Sequence[str] = ("T01,J001,495,30",),
     jobs_header: str = JOBS_HEADER,
     docks: tuple[DockDefinition, ...] = DOCKS,
+    relocation_time_min: int = 0,
 ) -> ScenarioDefinition:
     files = []
     for name, header, rows in [
@@ -40,7 +41,7 @@ def _load(
         path = tmp_path / name
         path.write_text("\n".join([header, *rows]) + "\n")
         files.append(path)
-    return load_scenario(*files, docks)
+    return load_scenario(*files, docks, relocation_time_min)
 
 
 def _assert_rejected(tmp_path: Path, message: str, **overrides) -> None:
@@ -64,6 +65,7 @@ def test_valid_files_build_trucks_with_jobs_in_sequence_order(tmp_path):
             "T01,J001,495,30",
             "T01,J003,495,45",
         ],
+        relocation_time_min=5,
     )
 
     assert scenario == ScenarioDefinition(
@@ -94,6 +96,7 @@ def test_valid_files_build_trucks_with_jobs_in_sequence_order(tmp_path):
             ),
         ),
         docks=DOCKS,
+        relocation_time_min=5,
     )
 
 
@@ -186,8 +189,9 @@ def test_inconsistent_realization_is_rejected(tmp_path, realization, message):
             "actual_service_time_min must be > 0",
         ),
         ({"docks": ()}, "scenario has no docks"),
+        ({"relocation_time_min": -1}, "relocation_time_min must be >= 0"),
     ],
-    ids=["duplicate_job_id", "zero_service_time", "no_docks"],
+    ids=["duplicate_job_id", "zero_service_time", "no_docks", "negative_relocation"],
 )
 def test_invalid_scenario_or_configuration_is_rejected(tmp_path, overrides, message):
     _assert_rejected(tmp_path, message, **overrides)
