@@ -103,12 +103,12 @@ def test_valid_files_build_trucks_with_jobs_in_sequence_order(tmp_path):
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
-        ({"trucks": ["T01,480,True"]}, "field 'priority'"),
-        ({"realization": ["T01,J001,49.5,30"]}, "field 'actual_arrival_min'"),
-        ({"jobs": ["J001,T01,1,load,A,30"]}, "field 'operation'"),
+        ({"trucks": ["T01,480,True"]}, "invalid priority 'True'"),
+        ({"realization": ["T01,J001,49.5,30"]}, "invalid actual_arrival_min '49.5'"),
+        ({"jobs": ["J001,T01,1,load,A,30"]}, "invalid operation 'load'"),
         (
             {"jobs_header": JOBS_HEADER.replace("section", "load_section")},
-            "missing ['section']",
+            "plan_jobs.csv: expected columns",
         ),
     ],
     ids=["priority", "integer", "operation", "header"],
@@ -123,17 +123,17 @@ def test_malformed_csv_content_is_rejected(tmp_path, overrides, message):
         (
             ["J001,T01,1,UNLOAD,A,30", "J002,T09,1,LOAD,B,20"],
             ["T01,J001,495,30", "T09,J002,500,20"],
-            "truck_id 'T09' is not defined",
+            "job 'J002' references unknown truck 'T09'",
         ),
         (
             ["J001,T01,1,UNLOAD,A,30", "J002,T01,1,LOAD,B,20"],
             ["T01,J001,495,30", "T01,J002,495,20"],
-            "truck 'T01' repeats sequence 1",
+            "truck 'T01': job sequence must be 1..2",
         ),
         (
             ["J001,T01,1,UNLOAD,A,30", "J002,T01,3,LOAD,B,20"],
             ["T01,J001,495,30", "T01,J002,495,20"],
-            "sequence must be contiguous",
+            "truck 'T01': job sequence must be 1..2",
         ),
     ],
     ids=["unknown_truck", "repeated_sequence", "sequence_gap"],

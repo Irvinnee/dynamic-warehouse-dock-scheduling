@@ -28,16 +28,6 @@ def validate_decision(decision: Assign, runtime: RuntimeState) -> None:
         raise InvalidDecisionError(
             f"dock {decision.dock_id!r} is {dock.status.value}, expected FREE"
         )
-    if dock.current_job_id is not None:
-        raise InvalidDecisionError(
-            f"dock {decision.dock_id!r} already holds job {dock.current_job_id!r}"
-        )
-    for other_dock in runtime.docks.values():
-        if other_dock.current_job_id == decision.job_id:
-            raise InvalidDecisionError(
-                f"job {decision.job_id!r} is already active on dock "
-                f"{other_dock.dock_id!r}"
-            )
 
 
 def validate_batch(decisions: tuple[Assign, ...], runtime: RuntimeState) -> None:

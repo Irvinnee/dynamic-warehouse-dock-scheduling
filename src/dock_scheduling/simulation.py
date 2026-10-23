@@ -32,7 +32,7 @@ class WarehouseSimulation:
         self._decision_requested = False
         self.runtime = create_runtime_state(scenario)
         self.event_log = EventLog()
-        # hidden realization, never copied into runtime
+        # not in runtime, the scheduler must never see actual service times
         self._actual_service_time_min = {
             realization.job_id: realization.actual_service_time_min
             for realization in scenario.realization.jobs

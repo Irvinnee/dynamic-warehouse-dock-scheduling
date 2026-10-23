@@ -48,7 +48,7 @@ class JobRealization:
 
 @dataclass(frozen=True)
 class RealizationDefinition:
-    """Actual outcomes, private to the simulator."""
+    """Actual outcomes, known only to the simulator."""
 
     trucks: tuple[TruckRealization, ...]
     jobs: tuple[JobRealization, ...]
