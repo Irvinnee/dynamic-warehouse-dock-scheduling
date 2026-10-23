@@ -7,30 +7,28 @@ from dock_scheduling.event_log import EventRecord, EventType
 from dock_scheduling.scheduler import FCFSScheduler
 from dock_scheduling.simulation import WarehouseSimulation
 
-FCFS_EXAMPLE_DIR = Path(__file__).parent.parent / "data" / "examples" / "fcfs"
+EXAMPLE_DIR = Path(__file__).parent.parent / "examples" / "data"
 DOCKS = (DockDefinition("D01"), DockDefinition("D02"))
 
-MULTI_JOB_PLAN_TRUCKS = """\
+SINGLE_JOB_PLAN_TRUCKS = """\
 truck_id,planned_arrival_min,priority
-T01,90,false
-T02,100,false
-T03,105,false
+T01,100,false
+T02,110,false
+T03,120,false
 """
 
-MULTI_JOB_PLAN_JOBS = """\
+SINGLE_JOB_PLAN_JOBS = """\
 job_id,truck_id,sequence,operation,section,estimated_service_time_min
 J001,T01,1,UNLOAD,A,40
-J002,T01,2,LOAD,B,20
-J101,T02,1,UNLOAD,C,50
-J201,T03,1,LOAD,A,40
+J002,T02,1,LOAD,B,50
+J003,T03,1,UNLOAD,A,20
 """
 
-MULTI_JOB_REALIZATION = """\
+SINGLE_JOB_REALIZATION = """\
 truck_id,job_id,actual_arrival_min,actual_service_time_min
-T01,J001,100,30
-T01,J002,100,20
-T02,J101,100,50
-T03,J201,110,40
+T01,J001,100,40
+T02,J002,110,50
+T03,J003,120,20
 """
 
 
@@ -57,8 +55,12 @@ def _assert_events(
     assert times == sorted(times)
 
 
-def test_example_csv_scenario_runs_to_completion_with_fcfs():
-    simulation = _run(FCFS_EXAMPLE_DIR, relocation_time_min=5)
+def test_single_job_csv_scenario_runs_to_completion_with_fcfs(tmp_path):
+    (tmp_path / "plan_trucks.csv").write_text(SINGLE_JOB_PLAN_TRUCKS)
+    (tmp_path / "plan_jobs.csv").write_text(SINGLE_JOB_PLAN_JOBS)
+    (tmp_path / "realization.csv").write_text(SINGLE_JOB_REALIZATION)
+
+    simulation = _run(tmp_path, relocation_time_min=5)
 
     _assert_events(
         simulation,
@@ -80,12 +82,8 @@ def test_example_csv_scenario_runs_to_completion_with_fcfs():
     } == {"T01": 140, "T02": 160, "T03": 160}
 
 
-def test_multi_job_csv_scenario_with_waiting_and_relocation(tmp_path):
-    (tmp_path / "plan_trucks.csv").write_text(MULTI_JOB_PLAN_TRUCKS)
-    (tmp_path / "plan_jobs.csv").write_text(MULTI_JOB_PLAN_JOBS)
-    (tmp_path / "realization.csv").write_text(MULTI_JOB_REALIZATION)
-
-    simulation = _run(tmp_path, relocation_time_min=5)
+def test_example_multi_job_scenario_with_waiting_and_relocation():
+    simulation = _run(EXAMPLE_DIR, relocation_time_min=5)
 
     # at 130 D01 goes to J201 (waiting since 110), J002 has to wait for D02
     # at 150 and relocates there from D01

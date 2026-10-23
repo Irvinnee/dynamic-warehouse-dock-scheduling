@@ -1,4 +1,0 @@
-truck_id,job_id,actual_arrival_min,actual_service_time_min
-T01,J001,100,40
-T02,J002,110,50
-T03,J003,120,20
