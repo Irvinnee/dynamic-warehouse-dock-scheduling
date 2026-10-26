@@ -30,6 +30,16 @@ realization.csv   truck_id,job_id,actual_arrival_min,actual_service_time_min
 
 `examples/data/` contains a small scenario with three trucks and two docks, and `examples/run_fcfs.py` runs it with FCFS.
 
+## Synthetic scenario generation
+
+`generate_plan` creates a reproducible plan from a configuration and a seed. Appointments are either spread over the window (`BALANCED`) or concentrated in a peak (`PEAKED`).
+
+```python
+from dock_scheduling.plan_generator import PlanGeneratorConfig, generate_plan
+
+plan = generate_plan(PlanGeneratorConfig(num_trucks=60), seed=1)
+```
+
 ## Running
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
@@ -44,4 +54,4 @@ uv run ruff format --check
 
 ## Status
 
-Implemented: the simulation model, CSV input and the FCFS baseline.
+Implemented: the simulation model, CSV input, the FCFS baseline and plan generation.
