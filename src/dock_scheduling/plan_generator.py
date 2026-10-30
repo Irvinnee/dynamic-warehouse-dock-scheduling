@@ -2,9 +2,13 @@ import random
 from dataclasses import dataclass
 from enum import Enum
 
-from dock_scheduling.domain import JobPlan, OperationType, PlanSnapshot, TruckPlan
-
-MINUTES_PER_DAY = 1440
+from dock_scheduling.domain import (
+    MINUTES_PER_DAY,
+    JobPlan,
+    OperationType,
+    PlanSnapshot,
+    TruckPlan,
+)
 
 
 class ArrivalProfile(Enum):

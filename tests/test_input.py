@@ -188,10 +188,20 @@ def test_inconsistent_realization_is_rejected(tmp_path, realization, message):
             {"realization": ["T01,J001,495,0"]},
             "actual_service_time_min must be > 0",
         ),
+        (
+            {"realization": ["T01,J001,1440,30"]},
+            "actual_arrival_min must be None or in [0, 1440)",
+        ),
         ({"docks": ()}, "scenario has no docks"),
         ({"relocation_time_min": -1}, "relocation_time_min must be >= 0"),
     ],
-    ids=["duplicate_job_id", "zero_service_time", "no_docks", "negative_relocation"],
+    ids=[
+        "duplicate_job_id",
+        "zero_service_time",
+        "arrival_at_1440",
+        "no_docks",
+        "negative_relocation",
+    ],
 )
 def test_invalid_scenario_or_configuration_is_rejected(tmp_path, overrides, message):
     _assert_rejected(tmp_path, message, **overrides)

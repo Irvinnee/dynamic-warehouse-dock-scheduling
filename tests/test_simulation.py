@@ -32,7 +32,7 @@ class _ScriptedScheduler:
 
 
 def _scenario(
-    trucks: dict[str, tuple[int, list[tuple[str, int]]]],
+    trucks: dict[str, tuple[int | None, list[tuple[str, int]]]],
     dock_ids: tuple[str, ...] = ("D01",),
     relocation_time_min: int = 0,
 ) -> ScenarioDefinition:
@@ -284,14 +284,13 @@ def test_relocation_reserves_the_destination_dock():
     assert state_at_122.free_docks == ()
 
 
-def test_day_cutoff_admits_arrivals_before_1440_and_lets_them_finish():
+def test_no_show_never_arrives_and_arrival_at_1439_finishes_after_midnight():
     simulation = WarehouseSimulation(
         _scenario(
             {
                 "T00": (0, [("J000", 10)]),
                 "T01": (1439, [("J001", 20), ("J002", 30)]),
-                "T02": (1440, [("J101", 10)]),
-                "T03": (1500, [("J201", 10)]),
+                "T02": (None, [("J101", 10)]),
             }
         ),
         FCFSScheduler(),
@@ -300,6 +299,7 @@ def test_day_cutoff_admits_arrivals_before_1440_and_lets_them_finish():
     simulation.run()
 
     assert set(simulation.runtime.trucks) == {"T00", "T01"}
+    assert "J101" not in simulation.runtime.jobs
     assert _timeline(simulation, "J002") == (1459, 1459, 1489)
     assert simulation.runtime.trucks["T01"].completed_min == 1489
     assert {record.truck_id for record in simulation.event_log.records} == {

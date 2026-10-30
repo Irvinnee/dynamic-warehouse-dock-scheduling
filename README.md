@@ -10,9 +10,9 @@ The plan says when trucks should arrive and how long their jobs should take. Wha
 
 ## Simulation model
 
-The simulation separates the plan from the actual realization. Actual arrival and service times may differ from the plan. The jobs of a truck are processed in their predefined order, and moving to another dock between two jobs takes a fixed relocation time.
+The simulation separates the plan from the actual realization. Trucks may arrive early or late or not at all (no-shows), and service times may differ from the estimates. The jobs of a truck are processed in their predefined order, and moving to another dock between two jobs takes a fixed relocation time.
 
-The scheduler is called whenever a truck arrives or a job ends. It sees only planned and already observed data, never the future realization. Trucks arriving between minute 0 and 1439 are served to the end, even after midnight. Later arrivals are ignored.
+The scheduler is called whenever a truck arrives or a job ends. It sees only planned and already observed data, never the future realization. A truck that arrives does so between minute 0 and 1439 and is served to the end, even after midnight.
 
 ## FCFS baseline
 

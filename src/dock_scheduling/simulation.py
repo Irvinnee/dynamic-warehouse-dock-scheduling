@@ -17,8 +17,6 @@ from dock_scheduling.runtime import (
 from dock_scheduling.scheduler import Scheduler
 from dock_scheduling.scheduling_state import build_scheduling_state
 
-DAY_END_MIN = 1440
-
 
 class WarehouseSimulation:
     def __init__(self, scenario: ScenarioDefinition, scheduler: Scheduler) -> None:
@@ -38,7 +36,7 @@ class WarehouseSimulation:
             for realization in scenario.realization.jobs
         }
         for realization in scenario.realization.trucks:
-            if realization.actual_arrival_min < DAY_END_MIN:
+            if realization.actual_arrival_min is not None:
                 self._env.process(
                     self._arrive(realization.truck_id, realization.actual_arrival_min)
                 )

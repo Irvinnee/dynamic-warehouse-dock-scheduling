@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
+MINUTES_PER_DAY = 1440
+
 
 class OperationType(Enum):
     LOAD = "LOAD"
@@ -37,7 +39,8 @@ class PlanSnapshot:
 @dataclass(frozen=True)
 class TruckRealization:
     truck_id: str
-    actual_arrival_min: int
+    # None = no-show
+    actual_arrival_min: int | None
 
 
 @dataclass(frozen=True)

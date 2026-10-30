@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 
-from dock_scheduling.domain import PlanSnapshot, ScenarioDefinition
+from dock_scheduling.domain import MINUTES_PER_DAY, PlanSnapshot, ScenarioDefinition
 
 
 class InvalidScenarioError(ValueError):
@@ -48,10 +48,11 @@ def validate_scenario(scenario: ScenarioDefinition) -> None:
         [job.job_id for job in realization.jobs],
     )
     for truck in realization.trucks:
-        if truck.actual_arrival_min < 0:
+        arrival_min = truck.actual_arrival_min
+        if arrival_min is not None and not 0 <= arrival_min < MINUTES_PER_DAY:
             raise InvalidScenarioError(
-                f"truck {truck.truck_id!r}: actual_arrival_min must be >= 0, "
-                f"got {truck.actual_arrival_min}"
+                f"truck {truck.truck_id!r}: actual_arrival_min must be None or in "
+                f"[0, {MINUTES_PER_DAY}), got {arrival_min}"
             )
     for job in realization.jobs:
         if job.actual_service_time_min <= 0:
