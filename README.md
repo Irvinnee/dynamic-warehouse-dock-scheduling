@@ -32,12 +32,19 @@ realization.csv   truck_id,job_id,actual_arrival_min,actual_service_time_min
 
 ## Synthetic scenario generation
 
-`generate_plan` creates a reproducible plan from a configuration and a seed. Appointments are either spread over the window (`BALANCED`) or concentrated in a peak (`PEAKED`).
+`generate_plan` creates a reproducible plan from a configuration and a seed. Appointments are either spread over the window (`BALANCED`) or concentrated in a peak (`PEAKED`). `generate_realization` then creates the actual day for that plan from its own seed: early and late arrivals, no-shows and service-time deviations.
 
 ```python
 from dock_scheduling.plan_generator import PlanGeneratorConfig, generate_plan
+from dock_scheduling.realization_generator import (
+    RealizationGeneratorConfig,
+    generate_realization,
+)
 
 plan = generate_plan(PlanGeneratorConfig(num_trucks=60), seed=1)
+realization = generate_realization(
+    plan, RealizationGeneratorConfig(no_show_probability=0.05), seed=2
+)
 ```
 
 ## Running
@@ -54,4 +61,4 @@ uv run ruff format --check
 
 ## Status
 
-Implemented: the simulation model, CSV input, the FCFS baseline and plan generation.
+Implemented: the simulation model, CSV input, the FCFS baseline, plan generation and realization generation.
