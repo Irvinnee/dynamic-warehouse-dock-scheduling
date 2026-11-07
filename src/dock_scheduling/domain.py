@@ -50,11 +50,19 @@ class JobRealization:
 
 
 @dataclass(frozen=True)
+class UnplannedTruck:
+    truck_id: str
+    actual_arrival_min: int
+    jobs: tuple[JobPlan, ...]
+
+
+@dataclass(frozen=True)
 class RealizationDefinition:
     """Actual outcomes, known only to the simulator."""
 
     trucks: tuple[TruckRealization, ...]
     jobs: tuple[JobRealization, ...]
+    unplanned_trucks: tuple[UnplannedTruck, ...] = ()
 
 
 @dataclass(frozen=True)

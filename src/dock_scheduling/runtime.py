@@ -20,6 +20,8 @@ class DockStatus(Enum):
 class TruckRuntime:
     truck_id: str
     observed_arrival_min: int
+    jobs: tuple[JobPlan, ...]
+    priority: bool
     current_job_index: int = 0
     completed_min: int | None = None
 
@@ -56,12 +58,10 @@ class RuntimeState:
         ]
 
 
-def previous_dock_id(
-    runtime: RuntimeState, truck: TruckRuntime, planned_jobs: tuple[JobPlan, ...]
-) -> str | None:
+def previous_dock_id(runtime: RuntimeState, truck: TruckRuntime) -> str | None:
     if truck.current_job_index == 0:
         return None
-    previous_job_id = planned_jobs[truck.current_job_index - 1].job_id
+    previous_job_id = truck.jobs[truck.current_job_index - 1].job_id
     return runtime.jobs[previous_job_id].assigned_dock_id
 
 

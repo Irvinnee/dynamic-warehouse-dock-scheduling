@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from dock_scheduling.decision import Assign, InvalidDecisionError
@@ -11,6 +13,7 @@ from dock_scheduling.domain import (
     ScenarioDefinition,
     TruckPlan,
     TruckRealization,
+    UnplannedTruck,
 )
 from dock_scheduling.event_log import EventRecord, EventType
 from dock_scheduling.runtime import JobStatus
@@ -306,3 +309,51 @@ def test_no_show_never_arrives_and_arrival_at_1439_finishes_after_midnight():
         "T00",
         "T01",
     }
+
+
+def test_walk_in_is_hidden_until_arrival_and_then_processed():
+    planned = _scenario({"T01": (100, [("J001", 30)])})
+    walk_in = UnplannedTruck(
+        "W001",
+        110,
+        (
+            JobPlan("WJ0001", OperationType.UNLOAD, "A", 20),
+            JobPlan("WJ0002", OperationType.LOAD, "B", 20),
+        ),
+    )
+    scenario = replace(
+        planned,
+        realization=replace(
+            planned.realization,
+            jobs=(
+                *planned.realization.jobs,
+                JobRealization("WJ0001", 10),
+                JobRealization("WJ0002", 15),
+            ),
+            unplanned_trucks=(walk_in,),
+        ),
+    )
+    scheduler = _ScriptedScheduler(
+        {
+            100: (Assign("J001", "D01"),),
+            130: (Assign("WJ0001", "D01"),),
+            140: (Assign("WJ0002", "D01"),),
+        }
+    )
+    simulation = WarehouseSimulation(scenario, scheduler)
+
+    simulation.run()
+
+    # nothing of W001 at 100, once it arrives only its first job shows up
+    assert [
+        (state.current_time_min, [job.job_id for job in state.eligible_jobs])
+        for state in scheduler.states
+    ] == [
+        (100, ["J001"]),
+        (110, ["WJ0001"]),
+        (130, ["WJ0001"]),
+        (140, ["WJ0002"]),
+        (155, []),
+    ]
+    assert _timeline(simulation, "WJ0002") == (140, 140, 155)
+    assert simulation.runtime.trucks["W001"].completed_min == 155

@@ -10,7 +10,7 @@ The plan says when trucks should arrive and how long their jobs should take. Wha
 
 ## Simulation model
 
-The simulation separates the plan from the actual realization. Trucks may arrive early or late or not at all (no-shows), and service times may differ from the estimates. The jobs of a truck are processed in their predefined order, and moving to another dock between two jobs takes a fixed relocation time.
+The simulation separates the plan from the actual realization. Trucks may arrive early or late or not at all (no-shows), and unplanned walk-in trucks may appear during the day. The jobs of a truck are processed in their predefined order, and moving to another dock between two jobs takes a fixed relocation time.
 
 The scheduler is called whenever a truck arrives or a job ends. It sees only planned and already observed data, never the future realization. A truck that arrives does so between minute 0 and 1439 and is served to the end, even after midnight.
 
@@ -32,7 +32,7 @@ realization.csv   truck_id,job_id,actual_arrival_min,actual_service_time_min
 
 ## Synthetic scenario generation
 
-`generate_plan` creates a reproducible plan from a configuration and a seed. Appointments are either spread over the window (`BALANCED`) or concentrated in a peak (`PEAKED`). `generate_realization` then creates the actual day for that plan from its own seed: early and late arrivals, no-shows and service-time deviations.
+`generate_plan` creates a reproducible plan from a configuration and a seed. Appointments are either spread over the window (`BALANCED`) or concentrated in a peak (`PEAKED`). `generate_realization` then creates the actual day for that plan from its own seed: early and late arrivals, no-shows, service-time deviations and walk-in trucks.
 
 ```python
 from dock_scheduling.plan_generator import PlanGeneratorConfig, generate_plan

@@ -22,11 +22,7 @@ class WarehouseSimulation:
     def __init__(self, scenario: ScenarioDefinition, scheduler: Scheduler) -> None:
         self._env = simpy.Environment()
         self._scheduler = scheduler
-        self._plan = scenario.plan
         self._relocation_time_min = scenario.relocation_time_min
-        self._planned_jobs_by_truck_id: dict[str, tuple[JobPlan, ...]] = {
-            truck.truck_id: truck.jobs for truck in scenario.plan.trucks
-        }
         self._decision_requested = False
         self.runtime = create_runtime_state(scenario)
         self.event_log = EventLog()
@@ -35,11 +31,24 @@ class WarehouseSimulation:
             realization.job_id: realization.actual_service_time_min
             for realization in scenario.realization.jobs
         }
+        planned_by_truck_id = {truck.truck_id: truck for truck in scenario.plan.trucks}
         for realization in scenario.realization.trucks:
             if realization.actual_arrival_min is not None:
+                truck = planned_by_truck_id[realization.truck_id]
                 self._env.process(
-                    self._arrive(realization.truck_id, realization.actual_arrival_min)
+                    self._arrive(
+                        truck.truck_id,
+                        realization.actual_arrival_min,
+                        truck.jobs,
+                        truck.priority,
+                    )
                 )
+        for walk_in in scenario.realization.unplanned_trucks:
+            self._env.process(
+                self._arrive(
+                    walk_in.truck_id, walk_in.actual_arrival_min, walk_in.jobs, False
+                )
+            )
 
     def run(self, until_min: int | None = None) -> None:
         """Process events up to, but not including, those at until_min."""
@@ -54,7 +63,7 @@ class WarehouseSimulation:
                 self._decide(int(current_min))
 
     def _activate_job(self, truck: TruckRuntime, job_index: int) -> None:
-        job_id = self._planned_jobs_by_truck_id[truck.truck_id][job_index].job_id
+        job_id = truck.jobs[job_index].job_id
         truck.current_job_index = job_index
         self.runtime.jobs[job_id] = JobRuntime(
             job_id, truck.truck_id, JobStatus.WAITING, int(self._env.now)
@@ -64,9 +73,7 @@ class WarehouseSimulation:
         now_min = int(self._env.now)
         job = self.runtime.jobs[job_id]
         truck = self.runtime.trucks[job.truck_id]
-        from_dock_id = previous_dock_id(
-            self.runtime, truck, self._planned_jobs_by_truck_id[truck.truck_id]
-        )
+        from_dock_id = previous_dock_id(self.runtime, truck)
         job.assigned_min = now_min
         job.assigned_dock_id = dock_id
         # dock is taken already, even while the truck is still relocating
@@ -98,18 +105,22 @@ class WarehouseSimulation:
         self._env.process(self._serve(job_id, dock_id))
 
     def _decide(self, current_min: int) -> None:
-        state = build_scheduling_state(current_min, self._plan, self.runtime)
+        state = build_scheduling_state(current_min, self.runtime)
         decisions = self._scheduler.schedule(state)
         validate_batch(decisions, self.runtime)
         for decision in decisions:
             self._assign(decision.job_id, decision.dock_id)
 
     def _arrive(
-        self, truck_id: str, actual_arrival_min: int
+        self,
+        truck_id: str,
+        actual_arrival_min: int,
+        jobs: tuple[JobPlan, ...],
+        priority: bool,
     ) -> Generator[simpy.Event, None, None]:
         yield self._env.timeout(actual_arrival_min)
         now_min = int(self._env.now)
-        truck = TruckRuntime(truck_id, now_min)
+        truck = TruckRuntime(truck_id, now_min, jobs, priority)
         self.runtime.trucks[truck_id] = truck
         self._activate_job(truck, 0)
         self.event_log.record(now_min, EventType.TRUCK_ARRIVAL, truck_id)
@@ -134,7 +145,7 @@ class WarehouseSimulation:
         self.event_log.record(now_min, EventType.JOB_END, job.truck_id, job_id, dock_id)
         truck = self.runtime.trucks[job.truck_id]
         next_job_index = truck.current_job_index + 1
-        if next_job_index < len(self._planned_jobs_by_truck_id[truck.truck_id]):
+        if next_job_index < len(truck.jobs):
             self._activate_job(truck, next_job_index)
         else:
             truck.completed_min = now_min

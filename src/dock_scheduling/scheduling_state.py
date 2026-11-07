@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from dock_scheduling.domain import OperationType, PlanSnapshot
+from dock_scheduling.domain import OperationType
 from dock_scheduling.runtime import DockStatus, RuntimeState, previous_dock_id
 
 
@@ -31,27 +31,25 @@ class SchedulingState:
 
 
 def build_scheduling_state(
-    current_time_min: int, plan: PlanSnapshot, runtime: RuntimeState
+    current_time_min: int, runtime: RuntimeState
 ) -> SchedulingState:
-    # takes only the plan, realization data never reaches the scheduler
-    planned_by_job_id = {
-        job.job_id: (truck, job) for truck in plan.trucks for job in truck.jobs
-    }
+    # runtime only has trucks that already arrived, nothing from the future
     eligible_jobs = []
     for job_id in runtime.eligible_job_ids:
-        truck_plan, job_plan = planned_by_job_id[job_id]
+        job = runtime.jobs[job_id]
+        truck = runtime.trucks[job.truck_id]
+        # a waiting job is always its truck's current job
+        job_plan = truck.jobs[truck.current_job_index]
         eligible_jobs.append(
             EligibleJobView(
                 job_id=job_id,
-                truck_id=truck_plan.truck_id,
+                truck_id=truck.truck_id,
                 operation=job_plan.operation,
                 section=job_plan.section,
-                priority=truck_plan.priority,
+                priority=truck.priority,
                 estimated_service_time_min=job_plan.estimated_service_time_min,
-                eligible_since_min=runtime.jobs[job_id].eligible_since_min,
-                previous_dock_id=previous_dock_id(
-                    runtime, runtime.trucks[truck_plan.truck_id], truck_plan.jobs
-                ),
+                eligible_since_min=job.eligible_since_min,
+                previous_dock_id=previous_dock_id(runtime, truck),
             )
         )
     return SchedulingState(

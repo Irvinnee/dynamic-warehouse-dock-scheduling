@@ -1,6 +1,12 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
-from dock_scheduling.domain import MINUTES_PER_DAY, PlanSnapshot, ScenarioDefinition
+from dock_scheduling.domain import (
+    MINUTES_PER_DAY,
+    PlanSnapshot,
+    ScenarioDefinition,
+    TruckPlan,
+    UnplannedTruck,
+)
 
 
 class InvalidScenarioError(ValueError):
@@ -8,10 +14,14 @@ class InvalidScenarioError(ValueError):
 
 
 def validate_plan(plan: PlanSnapshot) -> None:
-    jobs = [job for truck in plan.trucks for job in truck.jobs]
-    _check_ids("truck_id", [truck.truck_id for truck in plan.trucks])
+    _check_trucks(plan.trucks)
+
+
+def _check_trucks(trucks: Sequence[TruckPlan | UnplannedTruck]) -> None:
+    jobs = [job for truck in trucks for job in truck.jobs]
+    _check_ids("truck_id", [truck.truck_id for truck in trucks])
     _check_ids("job_id", [job.job_id for job in jobs])
-    for truck in plan.trucks:
+    for truck in trucks:
         if not truck.jobs:
             raise InvalidScenarioError(f"truck {truck.truck_id!r}: no jobs")
     for job in jobs:
@@ -27,7 +37,8 @@ def validate_plan(plan: PlanSnapshot) -> None:
 def validate_scenario(scenario: ScenarioDefinition) -> None:
     plan = scenario.plan
     realization = scenario.realization
-    validate_plan(plan)
+    all_trucks = (*plan.trucks, *realization.unplanned_trucks)
+    _check_trucks(all_trucks)
 
     if not scenario.docks:
         raise InvalidScenarioError("scenario has no docks")
@@ -44,7 +55,7 @@ def validate_scenario(scenario: ScenarioDefinition) -> None:
     )
     _check_realization_ids(
         "job",
-        [job.job_id for truck in plan.trucks for job in truck.jobs],
+        [job.job_id for truck in all_trucks for job in truck.jobs],
         [job.job_id for job in realization.jobs],
     )
     for truck in realization.trucks:
@@ -53,6 +64,12 @@ def validate_scenario(scenario: ScenarioDefinition) -> None:
             raise InvalidScenarioError(
                 f"truck {truck.truck_id!r}: actual_arrival_min must be None or in "
                 f"[0, {MINUTES_PER_DAY}), got {arrival_min}"
+            )
+    for walk_in in realization.unplanned_trucks:
+        if not 0 <= walk_in.actual_arrival_min < MINUTES_PER_DAY:
+            raise InvalidScenarioError(
+                f"walk-in {walk_in.truck_id!r}: actual_arrival_min must be in "
+                f"[0, {MINUTES_PER_DAY}), got {walk_in.actual_arrival_min}"
             )
     for job in realization.jobs:
         if job.actual_service_time_min <= 0:
