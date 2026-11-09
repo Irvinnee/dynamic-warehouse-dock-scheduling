@@ -61,4 +61,4 @@ uv run ruff format --check
 
 ## Status
 
-Implemented: the simulation model, CSV input, the FCFS baseline, plan generation and realization generation.
+Implemented: the simulation model, CSV input, the FCFS baseline, plan generation, realization generation and run metrics.
