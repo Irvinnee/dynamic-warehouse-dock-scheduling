@@ -47,6 +47,28 @@ realization = generate_realization(
 )
 ```
 
+## Experiment
+
+`run_experiment` generates a scenario, runs it with the given scheduler and returns metrics such as job waiting time, truck turnaround time and makespan.
+
+```python
+from dock_scheduling.experiment import run_experiment
+from dock_scheduling.plan_generator import PlanGeneratorConfig
+from dock_scheduling.realization_generator import RealizationGeneratorConfig
+from dock_scheduling.scheduler import FCFSScheduler
+
+result = run_experiment(
+    plan_config=PlanGeneratorConfig(num_trucks=60),
+    realization_config=RealizationGeneratorConfig(num_unplanned_trucks=5),
+    num_docks=10,
+    relocation_time_min=5,
+    plan_seed=1,
+    realization_seed=2,
+    scheduler=FCFSScheduler(),
+)
+print(result.metrics)
+```
+
 ## Running
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
@@ -61,4 +83,4 @@ uv run ruff format --check
 
 ## Status
 
-Implemented: the simulation model, CSV input, the FCFS baseline, plan generation, realization generation and run metrics.
+Implemented: the simulation model, CSV input, the FCFS baseline, plan generation, realization generation, run metrics and single experiment runs.
